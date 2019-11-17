@@ -1,0 +1,121 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath 'ru.alfalab.gradle:cucumber-reporting-gradle-plugin:0.1.0'
+        classpath 'ru.alfalab.gradle:cucumber-parallel-test-gradle-plugin:0.3.1'
+    }
+}
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+apply plugin: 'java'
+apply plugin: 'ru.alfalab.cucumber-reporting'
+apply plugin: 'ru.alfalab.cucumber-parallel-test'
+
+group 'shaqizy.com'
+version '1.0'
+
+sourceCompatibility = 1.8
+
+description = """Achillenium"""
+generateRunner.glue = ["ru.alfabank.steps", "steps"]
+
+
+dependencies {
+    compile group: 'ru.alfabank.tests', name: 'akita', version: '4.1.1'
+    compile group: 'org.projectlombok', name: 'lombok', version: '1.18.8'
+    compile group: 'org.postgresql', name: 'postgresql', version: '42.2.6'
+    compile group: 'org.apache.cayenne', name: 'cayenne-server', version: '4.1.B2'
+    testCompile("io.github.bonigarcia:webdrivermanager:3.4.0")
+    compileOnly 'org.projectlombok:lombok:1.18.8'
+    annotationProcessor 'org.projectlombok:lombok:1.18.8'
+}
+
+compileJava.options.encoding = 'UTF-8'
+compileTestJava.options.encoding = 'UTF-8'
+
+
+test {
+    maxParallelForks = 1
+    ignoreFailures = false
+    jvmArgs += "-Dprofile=${profile}"
+    jvmArgs += "-Dselenide.pageLoadStrategy=none"
+    //путь к классу с кастомными настройками драйвера.
+    jvmArgs += "-Dselenide.browser=utils.DriverProvider"
+
+    //параметры galen framework для возможности скролла страницы и снятния полного скриншота страницы
+    jvmArgs += "-Dgalen.browser.screenshots.fullPage=true"
+    jvmArgs += "-Dgalen.browser.screenshots.fullPage.scrollWait=50"
+
+    if (env) { //настройка профилей в gradle
+        jvmArgs += "-Denv=${env}"
+        println "Target environment: $env"
+        sourceSets.main.resources.srcDir "src/main/resources/$env"
+    }
+
+    if (!env) {
+        jvmArgs += "-Denv=dev"
+        println "Target environment: dev"
+        sourceSets.main.resources.srcDir "src/main/resources/dev"
+    }
+
+    if (tag) {
+        jvmArgs += "-Dcucumber.options=--tags ${tag}" //параметр для запуска тестов с использование тэгов
+    }
+    if (browser) {
+        // это нужно чтобы IE можно было запускать на прямую и в selenoid, если передавать просто browser - isIE не сработает и тесты не пройдут
+        // убрать можно будет после влития PR, где заменят isIE на loadProperty
+        if (browser.equalsIgnoreCase("chrome") && !remoteUrl) {
+            jvmArgs += "-Dselenide.browser=${browser}"
+            jvmArgs += "-Dwebdriver.ie.driver=webdrivers\\chromedriver.exe"
+            jvmArgs += "-Dbrowser=${browser}"
+
+        }
+        if (browser.equalsIgnoreCase("ie") && !remoteUrl) {
+            jvmArgs += "-Dselenide.browser=${browser}"
+            jvmArgs += "-Dwebdriver.ie.driver=webdrivers\\IEDriverServer.exe"
+            jvmArgs += "-Dbrowser=${browser}"
+
+        }  else {
+            jvmArgs += "-Dbrowser=${browser}"
+        }
+    }
+    if (remoteUrl) {
+        jvmArgs += "-DremoteUrl=${remoteUrl}" //url для удаленного зауска тестов
+    }
+    if (browserVersion) {
+        jvmArgs += "-DbrowserVersion=${browserVersion}"
+    }
+    if (height) {
+        jvmArgs += "-Dheight=${height}" //высота окна браузера
+    }
+    if (width) {
+        jvmArgs += "-Dwidth=${width}" //ширина окна браузера
+    }
+    if (maximized) {
+        jvmArgs += "-Dselenide.startMaximized=${maximized}"
+    }
+    if (width && height) {
+        jvmArgs += "-Dselenide.browserSize=${width}x${height}"
+    }
+    if (teamName) {
+        jvmArgs += "-DteamName=${teamName}"
+    }
+    reports {
+        html.enabled = true
+        junitXml.enabled = true
+    }
+}
+
+
+task makeZip(type: Zip) {
+    from('build/reports/cucumber') {
+        into("${project.version}-testReport")
+    }
+}
